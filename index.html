@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="nb">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sjakkanalyse Hurrator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Plan: ett smalt lesefelt (maks 860px), oppsummering først, så prioritert liste, tabeller og partier. */
+:root{
+  --bg:#edf1ee; --surface:#fbfcfb; --ink:#17231d; --muted:#5a6a61; --line:#d3dbd5; --accent:#1c6b50; --accent-ink:#ffffff;
+  --good:#2a7a4b; --warn:#9a6a12; --bad:#b03a29; --mid:#6c7a72;
+  --display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif; --body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;
+  --bg:#111916; --surface:#19231e; --ink:#e5ece7; --muted:#94a49b; --line:#2a3931; --accent:#62c69c; --accent-ink:#0d1a14;
+  --good:#6fca8f; --warn:#e2b45e; --bad:#ea8672; --mid:#8a9a91;}}
+:root[data-theme="dark"]{color-scheme:dark;
+  --bg:#111916; --surface:#19231e; --ink:#e5ece7; --muted:#94a49b; --line:#2a3931; --accent:#62c69c; --accent-ink:#0d1a14;
+  --good:#6fca8f; --warn:#e2b45e; --bad:#ea8672; --mid:#8a9a91;}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 var(--body)}
+.wrap{max-width:860px;margin:0 auto;padding:20px 16px 64px;display:flex;flex-direction:column;gap:20px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.2}
+h1{font-size:1.7rem} h2{font-size:1.25rem;margin-bottom:10px} h3{font-size:1.05rem;margin-bottom:6px} h4{margin:0 0 6px;font-size:.95rem}
+h2 small{font:400 .85rem var(--body);color:var(--muted);margin-left:6px}
+p{margin:0 0 10px} a{color:var(--accent)} .muted{color:var(--muted)} .good{color:var(--good)} .bad{color:var(--bad)}
+.sr{position:absolute;left:-9999px}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:end;justify-content:space-between}
+header p{margin:4px 0 0;color:var(--muted)}
+section,.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+input,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 11px;min-width:0}
+input:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+textarea{width:100%;min-height:90px;font-family:var(--mono);font-size:.85rem}
+.btn{font:600 .95rem var(--body);background:var(--accent);color:var(--accent-ink);border:1px solid var(--accent);border-radius:8px;padding:9px 14px;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--accent)} .btn:disabled{opacity:.5;cursor:default}
+.status{margin:10px 0 0;font-weight:500} .status.ok{color:var(--good)} .status.warn{color:var(--warn)} .status.bad{color:var(--bad)} .status:empty{display:none}
+details{margin-top:12px;border-top:1px solid var(--line);padding-top:12px} summary{cursor:pointer;font-weight:600}
+details ol{padding-left:20px;margin:10px 0} details li{margin-bottom:8px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:500 .88rem var(--body);background:transparent;color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:6px 12px;cursor:pointer}
+.chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+#filters{display:flex;flex-direction:column;gap:8px}
+.sum{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:center}
+.sum h2{font-size:1.5rem}
+.speeds{display:flex;flex-direction:column;gap:2px;font-size:.92rem;color:var(--muted);font-variant-numeric:tabular-nums} .speeds b{color:var(--ink);font-weight:600}
+.spark{width:100%;height:auto;display:block} .spark .grid{stroke:var(--line);stroke-dasharray:3 4} .spark .ln{fill:none;stroke:var(--accent);stroke-width:2}
+.spark .area{fill:var(--accent);opacity:.12} .spark .dot{fill:var(--accent)} .spark text{font:11px var(--mono);fill:var(--muted)}
+.cap{font-size:.82rem;color:var(--muted);margin:4px 0 0}
+.prio{list-style:none;margin:0;padding:0;counter-reset:p;display:flex;flex-direction:column;gap:16px}
+.prio>li{counter-increment:p;display:grid;grid-template-columns:34px 1fr;column-gap:12px;border-top:1px solid var(--line);padding-top:14px}
+.prio>li:first-child{border-top:0;padding-top:0}
+.prio>li::before{content:counter(p);grid-row:1/span 9;font:700 1.5rem var(--display);color:var(--accent)}
+.prio>li>*{grid-column:2;max-width:65ch}
+.ex{font-size:.9rem;color:var(--muted)}
+.more{display:flex;flex-direction:column;gap:16px} .more article{border-left:3px solid var(--line);padding-left:12px;max-width:68ch}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.plain{margin:0;padding-left:18px} .plain li{margin-bottom:6px}
+.tw{overflow-x:auto;margin-bottom:16px} table{border-collapse:collapse;width:100%;font-size:.93rem}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line)} th{font-weight:600;color:var(--muted);font-size:.82rem}
+.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap} td.num.good,td.num.bad{font-weight:600}
+.wdl{display:flex;height:10px;min-width:90px;border-radius:3px;overflow:hidden;background:var(--line)} .wdl .w{background:var(--good)} .wdl .d{background:var(--mid)} .wdl .l{background:var(--bad)}
+.games{list-style:none;margin:12px 0;padding:0} .game{border-top:1px solid var(--line)}
+.ghead{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;width:100%;text-align:left;background:none;border:0;color:inherit;font:inherit;padding:11px 2px;cursor:pointer}
+.gmeta{font-size:.85rem;color:var(--muted);align-self:center} .gverdict{grid-column:1/-1}
+.pill{font:600 .75rem var(--body);border-radius:4px;padding:2px 7px;border:1px solid currentColor;align-self:center} .pill.mid{color:var(--mid)}
+.gbody{padding:4px 2px 16px} .det{padding-left:18px;margin:0 0 10px} .det li{margin-bottom:4px}
+.moves{font:.82rem/1.6 var(--mono);color:var(--muted);overflow-wrap:anywhere}
+.chat{border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--bg)}
+.msgs{display:flex;flex-direction:column;gap:8px;max-height:420px;overflow-y:auto;margin-bottom:8px}
+.msg{padding:9px 12px;border-radius:8px;max-width:92%} .msg p:last-child{margin-bottom:0} .msg ul{margin:0 0 8px;padding-left:18px}
+.msg.user{align-self:flex-end;background:var(--accent);color:var(--accent-ink)} .msg.assistant{background:var(--surface);border:1px solid var(--line)}
+.sugg{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px} .ask{display:flex;gap:8px} .ask input{flex:1}
+#coachOut{margin-top:12px;max-width:68ch} #prog{font-size:.88rem;color:var(--muted)}
+@media (max-width:640px){.sum,.two{grid-template-columns:1fr}.prio>li{grid-template-columns:26px 1fr}section,.panel{padding:14px}}
+@media (prefers-reduced-motion:no-preference){.chip,.btn{transition:background .12s,color .12s}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div><h1>Sjakkanalyse</h1><p>Tekstlig tilbakemelding på Lichess-partiene dine, tilpasset ratingen din.</p></div>
+  <form class="row" id="userForm"><label for="user">Lichess-bruker</label><input id="user" size="12" autocomplete="off" spellcheck="false"><button class="btn ghost" type="submit">Bytt</button></form>
+</header>
+
+<div class="panel" id="load">
+  <h2>Partier</h2>
+  <p id="have">Ingen partier lastet ennå.</p>
+  <div class="row"><button class="btn" type="button" id="btnNew">Hent nye partier</button><button class="btn ghost" type="button" id="btnAll">Hent hele historikken</button><button class="btn ghost" type="button" id="btnStop" hidden>Stopp</button></div>
+  <form class="row" id="linkForm" style="margin-top:10px"><label class="sr" for="link">Lenke til ett parti</label><input id="link" placeholder="Lenke til ett parti, f.eks. https://lichess.org/AbCdEfGh" style="flex:1 1 240px" autocomplete="off"><button class="btn ghost" type="submit" id="btnLink">Legg til parti</button></form>
+  <p class="status" id="status" role="status"></p><p id="prog" hidden></p>
+  <details id="imp"><summary>Last inn fra fil eller lim inn PGN</summary>
+    <ol>
+      <li>Last ned fra Lichess: <a id="dlNew" href="#" target="_blank" rel="noopener">de siste partiene</a> eller <a id="dlAll" href="#" target="_blank" rel="noopener">hele historikken</a> (PGN med klokke og åpning).</li>
+      <li><label for="file">Velg filen her:</label> <input type="file" id="file" accept=".pgn,.ndjson,.json,.txt,text/plain,application/x-chess-pgn" multiple></li>
+      <li><label for="paste">Eller lim inn PGN for ett eller flere partier:</label><textarea id="paste" spellcheck="false"></textarea><button class="btn ghost" type="button" id="btnPaste">Legg til innlimte partier</button></li>
+    </ol>
+    <button class="btn ghost" type="button" id="btnClear">Slett lagrede partier</button>
+  </details>
+</div>
+
+<div id="filters" hidden><div class="chips" id="fSpeed"></div><div class="chips" id="fPeriod"></div></div>
+<div class="panel" id="empty"><h2>Slik kommer du i gang</h2><p>Siden prøver først å hente partiene rett fra Lichess. Går ikke det i visningen du bruker nå, åpner du «Last inn fra fil» over, laster ned partiene med lenken der og velger filen. Partiene lagres i nettleseren, så neste gang trenger du bare de nye.</p></div>
+<main id="out" class="wrap" style="padding:0"></main>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<script>
+/* ---------- Kjerne: innlesing, utledning og analyse (ingen DOM) ---------- */
+const VAL = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+const SPEED_NO = { ultraBullet: 'Ultrabullet', bullet: 'Bullet', blitz: 'Lynsjakk', rapid: 'Hurtigsjakk', classical: 'Klassisk', correspondence: 'Fjernsjakk' };
+const BANDS = [[0, 1200, 'under 1200'], [1200, 1500, '1200–1500'], [1500, 1800, '1500–1800'], [1800, 2100, '1800–2100'], [2100, 9999, 'over 2100']];
+const DEAD = ['aborted', 'noStart', 'created', 'started', 'unknownFinish', 'cheat', 'variantEnd'];
+
+const pct = x => Math.round(x * 100) + ' %';
+const mvNo = ply => Math.floor(ply / 2) + 1;
+const isMine = (g, ply) => (ply % 2 === 0) === (g.me === 'white');
+const score = gs => gs.length ? gs.reduce((s, g) => s + (g.res === 'w' ? 1 : g.res === 'd' ? 0.5 : 0), 0) / gs.length : 0;
+const median = a => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
+const winPct = cp => 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1);
+
+function judgeEvals(evals, me) {
+  // evals[i] = centibønder sett fra hvit etter halvtrekk i. Returnerer mine feil.
+  const out = [];
+  for (let i = 0; i < evals.length; i++) {
+    if ((i % 2 === 0) !== (me === 'white')) continue;
+    const before = i === 0 ? 15 : evals[i - 1], after = evals[i];
+    if (before == null || after == null) continue;
+    const s = me === 'white' ? 1 : -1;
+    const drop = winPct(s * before) - winPct(s * after);
+    if (drop >= 30) out.push({ ply: i, name: 'Bukk' });
+    else if (drop >= 20) out.push({ ply: i, name: 'Feil' });
+    else if (drop >= 10) out.push({ ply: i, name: 'Unøyaktighet' });
+  }
+  return out;
+}
+function countJudg(j) {
+  return { blun: j.filter(x => x.name === 'Bukk').length, mist: j.filter(x => x.name === 'Feil').length, inacc: j.filter(x => x.name === 'Unøyaktighet').length };
+}
+
+function fromJson(o, user) {
+  if (!o || !o.id || !o.players) return null;
+  if (o.variant && o.variant !== 'standard') return null;
+  if (DEAD.includes(o.status)) return null;
+  const u = user.toLowerCase();
+  const nm = c => { const p = o.players[c] || {}; return p.user ? (p.user.id || p.user.name || '').toLowerCase() : ''; };
+  const me = nm('white') === u ? 'white' : nm('black') === u ? 'black' : null;
+  if (!me) return null;
+  const moves = (o.moves || '').split(' ').filter(Boolean);
+  if (moves.length < 4) return null;
+  const op = me === 'white' ? 'black' : 'white';
+  const P = o.players[me], Q = o.players[op];
+  let judg = null, an = null;
+  if (Array.isArray(o.analysis) && o.analysis.length) {
+    const evals = o.analysis.map(a => a.mate != null ? (a.mate > 0 ? 10000 : -10000) : a.eval);
+    judg = judgeEvals(evals, me);
+    an = countJudg(judg);
+    if (P.analysis) { an.acpl = P.analysis.acpl; an.acc = P.analysis.accuracy; }
+  }
+  return {
+    id: o.id, u, t: o.createdAt, speed: o.speed || 'blitz', rated: !!o.rated, me,
+    myR: P.rating || null, opR: Q.rating || null, diff: P.ratingDiff == null ? null : P.ratingDiff,
+    opp: Q.user ? Q.user.name : (Q.aiLevel ? 'Stockfish nivå ' + Q.aiLevel : 'Anonym'),
+    res: !o.winner ? 'd' : o.winner === me ? 'w' : 'l', status: o.status,
+    eco: o.opening ? o.opening.eco : '', opening: o.opening ? o.opening.name : '',
+    moves, clocks: Array.isArray(o.clocks) && o.clocks.length >= moves.length - 1 ? o.clocks : null,
+    init: o.clock ? o.clock.initial : null, inc: o.clock ? o.clock.increment : 0, an, judg
+  };
+}
+
+function parsePgn(text, user) {
+  const out = []; let skipped = 0;
+  const chunks = text.replace(/\r/g, '').split(/\n\s*\n(?=\[)/);
+  const u = user.toLowerCase();
+  for (const ch of chunks) {
+    if (!ch.trim()) continue;
+    const h = {}; let m; const re = /^\[(\w+)\s+"((?:[^"\\]|\\.)*)"\]\s*$/gm;
+    while ((m = re.exec(ch))) h[m[1]] = m[2];
+    const body = ch.replace(/^\[.*\]\s*$/gm, '');
+    if (!h.White || !h.Black) { skipped++; continue; }
+    if (h.Variant && !/^standard$/i.test(h.Variant)) { skipped++; continue; }
+    const me = h.White.toLowerCase() === u ? 'white' : h.Black.toLowerCase() === u ? 'black' : null;
+    if (!me) { skipped++; continue; }
+    const moves = [], clocks = [], evals = []; let hasEval = false;
+    const toks = body.match(/\{[^}]*\}|\([^)]*\)|[^\s{}()]+/g) || [];
+    for (const tk of toks) {
+      if (tk[0] === '{') {
+        const c = /%clk\s+(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(tk);
+        if (c) clocks.push(Math.round((+c[1] * 3600 + +c[2] * 60 + +c[3]) * 100));
+        const e = /%eval\s+(#?-?\d+(?:\.\d+)?)/.exec(tk);
+        if (e && moves.length) { hasEval = true; evals[moves.length - 1] = e[1][0] === '#' ? (e[1][1] === '-' ? -10000 : 10000) : Math.round(+e[1] * 100); }
+        continue;
+      }
+      if (tk[0] === '(' || tk[0] === '$' || /^(1-0|0-1|1\/2-1\/2|\*)$/.test(tk)) continue;
+      const san = tk.replace(/^\d+\.+/, '').replace(/[!?]+$/, '');
+      if (san) moves.push(san);
+    }
+    if (moves.length < 4 || h.Result === '*') { skipped++; continue; }
+    const tc = /^(\d+)\+(\d+)$/.exec(h.TimeControl || '');
+    const init = tc ? +tc[1] : null, inc = tc ? +tc[2] : 0;
+    let sp = /(ultrabullet|bullet|blitz|rapid|classical|correspondence)/i.exec(h.Event || '');
+    let speed = sp ? sp[1].toLowerCase() : null;
+    if (speed === 'ultrabullet') speed = 'ultraBullet';
+    if (!speed) { const est = init == null ? 99999 : init + 40 * inc; speed = est < 30 ? 'ultraBullet' : est < 180 ? 'bullet' : est < 480 ? 'blitz' : est < 1500 ? 'rapid' : 'classical'; }
+    const d = (h.UTCDate || h.Date || '').split('.'), tm = (h.UTCTime || '00:00:00').split(':');
+    const t = Date.UTC(+d[0] || 2000, (+d[1] || 1) - 1, +d[2] || 1, +tm[0] || 0, +tm[1] || 0, +tm[2] || 0);
+    const idm = /lichess\.org\/(\w{8})/.exec(h.Site || h.GameId || '');
+    const res = h.Result === '1/2-1/2' ? 'd' : (h.Result === '1-0') === (me === 'white') ? 'w' : 'l';
+    const term = h.Termination || '', last = moves[moves.length - 1];
+    const status = res === 'd' ? (/stalemate/i.test(term) ? 'stalemate' : 'draw') : /time/i.test(term) ? 'outoftime' : /abandon/i.test(term) ? 'timeout' : /#$/.test(last) ? 'mate' : 'resign';
+    const num = x => { const v = parseInt(x, 10); return isNaN(v) ? null : v; };
+    let judg = null, an = null;
+    if (hasEval) { judg = judgeEvals(evals, me); an = countJudg(judg); }
+    out.push({
+      id: idm ? idm[1] : 'p' + t + (h.White + h.Black).length, u, t, speed, rated: /^rated/i.test(h.Event || ''), me,
+      myR: num(me === 'white' ? h.WhiteElo : h.BlackElo), opR: num(me === 'white' ? h.BlackElo : h.WhiteElo),
+      diff: num(me === 'white' ? h.WhiteRatingDiff : h.BlackRatingDiff),
+      opp: me === 'white' ? h.Black : h.White, res, status, eco: h.ECO || '', opening: h.Opening && h.Opening !== '?' ? h.Opening : '',
+      moves, clocks: clocks.length >= moves.length - 1 && clocks.length ? clocks : null, init, inc, an, judg
+    });
+  }
+  return { games: out, skipped };
+}
+
+function parseAny(text, user) {
+  const t = text.trim();
+  if (!t) return { games: [], skipped: 0 };
+  if (t[0] === '{') {
+    const games = []; let skipped = 0;
+    for (const line of t.split('\n')) {
+      if (!line.trim()) continue;
+      try { const g = fromJson(JSON.parse(line), user); g ? games.push(g) : skipped++; } catch (e) { skipped++; }
+    }
+    return { games, skipped };
+  }
+  return parsePgn(t, user);
+}
+
+/* Spiller gjennom partiet og finner materielle hendelser og klokkedata. */
+function derive(g, Chess) {
+  const d = { v: 1, plies: g.moves.length, drops: [], gains: [], matEnd: 0, maxLead: 0, maxLeadPly: -1, minLead: 0 };
+  if (Chess) {
+    const c = new Chess(), mat = [], cap = [], sign = g.me === 'white' ? 1 : -1; let cur = 0;
+    for (const san of g.moves) {
+      const m = c.move(san, { sloppy: true });
+      if (!m) break;
+      let delta = 0;
+      if (m.captured) delta += VAL[m.captured];
+      if (m.promotion) delta += VAL[m.promotion] - 1;
+      cur += (m.color === 'w' ? 1 : -1) * sign * delta;
+      mat.push(cur); cap.push(delta > 0);
+    }
+    const n = mat.length; let pq = -1, pv = 0;
+    for (let k = 0; k < n; k++) {
+      if (k !== n - 1 && cap[k + 1]) continue;
+      const v = mat[k], later = mat[Math.min(k + 2, n - 1)];
+      if (k > pq && Math.abs(v - pv) >= 2 && Math.sign(later - pv) === Math.sign(v - pv) && Math.abs(later - pv) >= 2) {
+        let f = pq + 1; while (f <= k && !cap[f]) f++;
+        const lost = v < pv;
+        // Den som slår først: hvis det er vinneren av avbyttet, ligger feilen i trekket før.
+        const firstMine = isMine(g, f);
+        const blame = lost ? (firstMine ? f : f - 1) : (firstMine ? f - 1 : f);
+        const ev = { ply: Math.max(0, blame), san: g.moves[Math.max(0, blame)], n: Math.abs(v - pv) };
+        (lost ? d.drops : d.gains).push(ev);
+      }
+      if (v > d.maxLead) { d.maxLead = v; d.maxLeadPly = k; }
+      if (v < d.minLead) d.minLead = v;
+      pq = k; pv = v;
+    }
+    d.matEnd = n ? mat[n - 1] : 0; d.ok = n === g.moves.length;
+  }
+  if (g.clocks) {
+    const mine = [], theirs = [];
+    g.clocks.forEach((x, i) => (isMine(g, i) ? mine : theirs).push(x));
+    d.myEnd = mine[mine.length - 1]; d.opEnd = theirs[theirs.length - 1];
+    if (mine.length >= 15 && theirs.length >= 15) { d.my15 = mine[14]; d.op15 = theirs[14]; }
+    d.myMin = Math.min(...mine);
+  }
+  return d;
+}
+
+function bandOf(r) { let i = BANDS.findIndex(b => r >= b[0] && r < b[1]); return i < 0 ? 2 : i; }
+
+const ADV_MAT = [
+  'På dette nivået avgjøres de fleste partier av brikker som står i slag. Før hvert trekk: se hva motstanderens siste trekk truer, og om brikken du flytter fortsatt er dekket. Noen få enkle taktikkoppgaver hver dag med temaet «hengende brikke» gir mest igjen.',
+  'Tapene kommer ofte av totrekks-taktikk: gafler, bindinger og avdekkere. Ta en rask runde på sjakker, slag og trusler før du slipper brikken. Tren Lichess-oppgaver på temaene gaffel og binding, 10–15 minutter daglig.',
+  'Du ser de enkle truslene, så tapene handler mer om løse brikker og oversette mellomtrekk. Tell angripere og forsvarere før du går inn i avbytter, og hold øye med udekkede brikker hos begge. Oppgaver i roligere tempo enn du spiller gir mer enn Puzzle Storm.',
+  'På ditt nivå er rene bukker oftest et symptom på tidsnød eller pressede stillinger. Se hvilken fase de kommer i, og legg tiden din der. Regn konkrete varianter ett trekk lenger når stillingen er taktisk.',
+  'Materialtapene er sjeldne nok til at mønsteret (fase, åpning, klokke) betyr mer enn antallet. Se etter felles struktur i eksemplene.'
+];
+const ADV_OPEN = [
+  'Du trenger ikke teori ennå. Lær én oppstilling der du forstår planen, og sammenlign de fem–seks første trekkene i tapspartiene med åpningsutforskeren på Lichess.',
+  'Du trenger ikke teori ennå. Lær én oppstilling der du forstår planen, og sammenlign de fem–seks første trekkene i tapspartiene med åpningsutforskeren på Lichess.',
+  'Velg én hovedvariant og lær planene, ikke trekkrekkene. Gå gjennom tapene og noter hvor du først avviker fra det mest spilte trekket i Lichess-databasen for ditt ratingnivå.',
+  'Gå gjennom tapene med åpningsutforskeren og finn de kritiske linjene motstanderne velger. Vurder om varianten passer tidskontrollen du spiller.',
+  'Gå gjennom tapene med åpningsutforskeren og finn de kritiske linjene motstanderne velger. Vurder om varianten passer tidskontrollen du spiller.'
+];
+const ADV_TIME = {
+  bullet: 'I bullet er klokken en brikke. Når du leder materielt: bytt av, spill trygge trekk raskt og bruk premove på tvungne gjenslag. Gi deg selv en fast regel, for eksempel at du under 15 sekunder spiller det første trygge trekket du ser.',
+  ultraBullet: 'Her er klokken alt. Spill faste oppstillinger på premove og unngå kompliserte stillinger når du leder.',
+  blitz: 'Spill åpningstrekkene du kan på et par sekunder, og bruk tiden i overgangen til midtspillet. Er du jevnlig under 30 sekunder rundt trekk 25, bruker du for mye på rolige stillinger.',
+  rapid: 'Fordel tiden: omtrent en tredjedel igjen når sluttspillet begynner. Bruk lange tenkepauser bare der stillingen faktisk er kritisk.',
+  classical: 'Fordel tiden: omtrent en tredjedel igjen når sluttspillet begynner. Bruk lange tenkepauser bare der stillingen faktisk er kritisk.'
+};
+
+function analyse(all) {
+  const gs = [...all].sort((a, b) => a.t - b.t), n = gs.length;
+  const R = { n, findings: [], strengths: [], notes: [] };
+  if (!n) return R;
+  const W = gs.filter(g => g.res === 'w'), L = gs.filter(g => g.res === 'l'), D = gs.filter(g => g.res === 'd');
+  R.w = W.length; R.l = L.length; R.d = D.length; R.score = score(gs);
+  const bySpeed = {}; gs.forEach(g => (bySpeed[g.speed] = bySpeed[g.speed] || []).push(g));
+  R.speed = Object.keys(bySpeed).sort((a, b) => bySpeed[b].length - bySpeed[a].length)[0];
+  R.bySpeed = Object.keys(bySpeed).map(s => { const x = bySpeed[s], r = x.filter(g => g.rated && g.myR); return { speed: s, n: x.length, score: score(x), rating: r.length ? r[r.length - 1].myR : null }; }).sort((a, b) => b.n - a.n);
+  const main = bySpeed[R.speed].filter(g => g.rated && g.myR);
+  R.rating = main.length ? median(main.slice(-30).map(g => g.myR)) : median(gs.filter(g => g.myR).slice(-30).map(g => g.myR)) || 1500;
+  R.band = bandOf(R.rating); R.bandName = BANDS[R.band][2];
+  R.series = main.map(g => ({ t: g.t, r: g.myR }));
+  const ex = (list, plyFn) => list.slice(-3).reverse().map(g => ({ g, ply: plyFn ? plyFn(g) : null }));
+  const F = (key, cost, title, html, examples) => R.findings.push({ key, cost, title, html, ex: examples || [] });
+  const dg = gs.filter(g => g.d && g.d.ok);
+  const big = e => e.n >= 3;
+
+  // --- Tid ---
+  const flag = L.filter(g => g.status === 'outoftime');
+  if (L.length >= 10 && flag.length) {
+    const ahead = flag.filter(g => g.d && g.d.matEnd >= 3), share = flag.length / L.length;
+    const c15 = gs.filter(g => g.d && g.d.my15 != null && g.init);
+    let clockTxt = '';
+    if (c15.length >= 20) {
+      const my = c15.reduce((s, g) => s + g.d.my15 / (g.init * 100), 0) / c15.length, op = c15.reduce((s, g) => s + g.d.op15 / (g.init * 100), 0) / c15.length;
+      R.clock15 = { my, op };
+      clockTxt = ` Etter 15 trekk har du i snitt ${pct(my)} av starttiden igjen, motstanderne ${pct(op)}.`;
+    }
+    const wonFlag = W.filter(g => g.status === 'outoftime' && g.d && g.d.matEnd <= -3).length;
+    if (share >= 0.2 || ahead.length >= 5) {
+      F('tid', ahead.length + (flag.length - ahead.length) * 0.3, 'Klokken koster deg partier',
+        `<p><b>${flag.length} av ${L.length} tap (${pct(share)})</b> kom på tid.` + (ahead.length ? ` I <b>${ahead.length}</b> av dem hadde du minst en offiser mer da flagget falt.` : '') + clockTxt + (wonFlag ? ` Til gjengjeld har du selv flagget ${wonFlag} motstandere i tapte stillinger.` : '') + `</p><p>${ADV_TIME[R.speed] || ADV_TIME.blitz}</p>`,
+        ex(ahead.length ? ahead : flag));
+    } else R.notes.push(`Tidsbruk: ${pct(share)} av tapene dine kommer på tid.` + clockTxt);
+  }
+
+  // --- Materialtap ---
+  if (dg.length >= 20) {
+    const myDrops = dg.reduce((s, g) => s + g.d.drops.filter(big).length, 0), opDrops = dg.reduce((s, g) => s + g.d.gains.filter(big).length, 0);
+    const ph = [0, 0, 0];
+    dg.forEach(g => g.d.drops.filter(big).forEach(e => ph[mvNo(e.ply) <= 12 ? 0 : mvNo(e.ply) <= 30 ? 1 : 2]++));
+    const lossFirst = dg.filter(g => g.res === 'l' && g.d.drops.some(big) && g.d.maxLead < 3);
+    const rate = myDrops / dg.length, opRate = opDrops / dg.length;
+    R.dropRate = rate; R.opDropRate = opRate;
+    const worstPh = ph.indexOf(Math.max(...ph)), phName = ['i åpningen (trekk 1–12)', 'i midtspillet (trekk 13–30)', 'etter trekk 30'][worstPh];
+    if (myDrops >= 5) {
+      F('materiell', lossFirst.length * 0.6, 'Du gir bort offiserer',
+        `<p>Du taper en offiser eller mer uten kompensasjon <b>${rate.toFixed(2)} ganger per parti</b>; motstanderne dine gjør det ${opRate.toFixed(2)} ganger. <b>${lossFirst.length}</b> tap ble avgjort slik uten at du selv hadde ledet først. Flest tap kommer <b>${phName}</b> (${ph[0]} / ${ph[1]} / ${ph[2]} fordelt på åpning, midtspill og senere).</p><p>${ADV_MAT[R.band]}</p>`,
+        ex(lossFirst, g => g.d.drops.find(big).ply));
+      if (rate < opRate * 0.8) R.strengths.push(`Du gir bort materiell sjeldnere enn motstanderne (${rate.toFixed(2)} mot ${opRate.toFixed(2)} per parti).`);
+    }
+
+    // --- Omsetting av fordel ---
+    const led = dg.filter(g => g.d.maxLead >= 3 && g.d.maxLeadPly < g.d.plies - 4);
+    if (led.length >= 15) {
+      const conv = led.filter(g => g.res === 'w').length / led.length, thrown = led.filter(g => g.res === 'l');
+      R.conv = conv;
+      const thrownFlag = thrown.filter(g => g.status === 'outoftime').length;
+      if (conv < 0.85) F('omsetting', thrown.length + led.filter(g => g.res === 'd').length * 0.5, 'Vunne stillinger glipper',
+        `<p>Du har ledet med en offiser eller mer i ${led.length} partier og vunnet <b>${pct(conv)}</b> av dem. <b>${thrown.length}</b> endte med tap` + (thrownFlag ? `, ${thrownFlag} av dem på tid` : '') + `.</p><p>Når du leder: bytt brikker (ikke bønder), fjern motspill før du går til angrep, og sjekk kongens sikkerhet én gang ekstra. Det enkleste trekket som beholder fordelen er nesten alltid riktig i ${SPEED_NO[R.speed].toLowerCase()}.</p>`,
+        ex(thrown, g => g.d.maxLeadPly));
+      else R.strengths.push(`Du vinner ${pct(conv)} av partiene der du har ledet med en offiser eller mer.`);
+    }
+    const behind = dg.filter(g => g.d.minLead <= -3 && g.d.maxLead < 3);
+    if (behind.length >= 15 && score(behind) >= 0.2) R.strengths.push(`Du kjemper godt i dårlige stillinger: ${pct(score(behind))} av poengene i partier der du lå en offiser under.`);
+  }
+
+  // --- Åpninger ---
+  R.openings = { white: [], black: [] };
+  for (const col of ['white', 'black']) {
+    const cg = gs.filter(g => g.me === col && g.opening), base = score(cg), fam = {};
+    cg.forEach(g => { const k = g.opening.split(':')[0].trim(); (fam[k] = fam[k] || []).push(g); });
+    const rows = Object.keys(fam).map(k => ({ name: k, col, gs: fam[k], n: fam[k].length, score: score(fam[k]), w: fam[k].filter(g => g.res === 'w').length, d: fam[k].filter(g => g.res === 'd').length, l: fam[k].filter(g => g.res === 'l').length })).sort((a, b) => b.n - a.n);
+    R.openings[col] = rows; R['base_' + col] = base; R['n_' + col] = cg.length;
+    const min = Math.max(8, Math.round(cg.length * 0.03));
+    const cand = rows.filter(r => r.n >= min);
+    const worst = cand.filter(r => r.score < base - 0.07).sort((a, b) => (a.score - base) * a.n - (b.score - base) * b.n)[0];
+    const best = cand.filter(r => r.score > base + 0.07).sort((a, b) => (b.score - base) * b.n - (a.score - base) * a.n)[0];
+    const cn = col === 'white' ? 'hvit' : 'svart';
+    if (worst) {
+      const lost = worst.gs.filter(g => g.res === 'l'), short = lost.filter(g => g.moves.length <= 50).length;
+      F('aapning_' + col, (base - worst.score) * worst.n, `${worst.name} som ${cn} gir for lite`,
+        `<p>${worst.n} partier, <b>${pct(worst.score)}</b> av poengene. Snittet ditt som ${cn} er ${pct(base)}.` + (short >= 3 ? ` ${short} av de ${lost.length} tapene var over innen 25 trekk, så problemet sitter tidlig.` : '') + `</p><p>${ADV_OPEN[R.band]}</p>`,
+        ex(lost));
+    }
+    if (best) R.strengths.push(`${best.name} som ${cn}: ${pct(best.score)} på ${best.n} partier (snitt ${pct(base)}).`);
+  }
+  const ws = gs.filter(g => g.me === 'white'), bs = gs.filter(g => g.me === 'black');
+  if (ws.length >= 40 && bs.length >= 40 && score(ws) - score(bs) >= 0.1)
+    F('farge', (score(ws) - score(bs)) * bs.length * 0.5, 'Stort gap mellom hvit og svart',
+      `<p>Du tar ${pct(score(ws))} som hvit og ${pct(score(bs))} som svart. Noe forskjell er normalt (3–5 prosentpoeng), men dette er mer.</p><p>Se på åpningstabellen for svart under: det er som regel ett eller to svar som trekker ned. Et solid, enkelt forsvar du kjenner planene i er verdt mer enn et skarpt du kan halvveis.</p>`, ex(bs.filter(g => g.res === 'l')));
+
+  // --- Korte tap ---
+  const shortL = L.filter(g => g.moves.length <= 40 && g.status !== 'outoftime');
+  if (L.length >= 20 && shortL.length / L.length >= 0.2) {
+    const cnt = {}; shortL.forEach(g => { const k = (g.opening || 'Ukjent').split(':')[0]; cnt[k] = (cnt[k] || 0) + 1; });
+    const top = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a]).slice(0, 3).map(k => `${k} (${cnt[k]})`).join(', ');
+    F('korte', shortL.length * 0.4, 'Mange tap er over før trekk 20',
+      `<p><b>${shortL.length} av ${L.length} tap (${pct(shortL.length / L.length)})</b> varte 20 trekk eller kortere. Vanligste åpninger i disse: ${top}.</p><p>Korte tap er nesten alltid én av tre ting: en åpningsfelle, en hengende brikke eller en konge som blir stående i sentrum. Rokér tidlig, utvikle offiserene før dronningen, og se gjennom akkurat disse partiene. De er raske å lære av.</p>`, ex(shortL));
+  }
+
+  // --- Lange partier ---
+  const longG = gs.filter(g => g.moves.length >= 90);
+  if (longG.length >= 20 && score(longG) < R.score - 0.07)
+    F('sluttspill', (R.score - score(longG)) * longG.length, 'Lange partier går dårligere',
+      `<p>I partier på 45 trekk eller mer tar du ${pct(score(longG))} mot ${pct(R.score)} totalt (${longG.length} partier).</p><p>Det peker mot sluttspillteknikk eller tid. Grunnleggende tårnsluttspill og konge-og-bonde-sluttspill (opposisjon, kvadratregelen) er det som oftest avgjør. Lichess har øvelser for begge under Lær → Øvelse.</p>`, ex(longG.filter(g => g.res === 'l')));
+  else if (longG.length >= 20 && score(longG) > R.score + 0.05) R.strengths.push(`Lange partier (45+ trekk) går bedre enn snittet: ${pct(score(longG))}.`);
+
+  // --- Tilt og økter ---
+  const afterL = [], afterW = [], after3 = []; let streak = 0, maxStreak = 0;
+  for (let i = 1; i < n; i++) {
+    const p = gs[i - 1], g = gs[i], same = g.t - p.t < 30 * 60000;
+    streak = p.res === 'l' ? (same || streak === 0 ? streak + 1 : 1) : 0;
+    maxStreak = Math.max(maxStreak, streak);
+    if (!same) { streak = p.res === 'l' ? 1 : 0; continue; }
+    if (p.res === 'l') afterL.push(g); else if (p.res === 'w') afterW.push(g);
+    if (streak >= 3) after3.push(g);
+  }
+  R.maxStreak = maxStreak;
+  if (afterL.length >= 30 && afterW.length >= 30) {
+    const sl = score(afterL), sw = score(afterW);
+    R.afterL = sl; R.afterW = sw;
+    if (sw - sl >= 0.05) F('tilt', (sw - sl) * afterL.length, 'Du spiller dårligere rett etter et tap',
+      `<p>Partiet rett etter et tap gir deg ${pct(sl)}; rett etter en seier ${pct(sw)}.` + (after3.length >= 15 ? ` Etter tre tap på rad i samme økt: <b>${pct(score(after3))}</b> (${after3.length} partier).` : '') + `</p><p>Det er ratingpoeng du kan hente uten å bli bedre i sjakk. Sett en stoppregel: to tap på rad betyr fem minutters pause, tre betyr at økten er over.</p>`, ex(after3.filter(g => g.res === 'l')));
+    else R.strengths.push(`Du lar deg ikke vippe av tap: ${pct(sl)} i partiet etter et tap, ${pct(sw)} etter seier.`);
+  }
+
+  // --- Motstanderstyrke ---
+  const rated = gs.filter(g => g.rated && g.myR && g.opR);
+  const exp = g => 1 / (1 + Math.pow(10, (g.opR - g.myR) / 400));
+  const bucket = (name, f) => { const x = rated.filter(f); return { name, n: x.length, act: score(x), exp: x.length ? x.reduce((s, g) => s + exp(g), 0) / x.length : 0, gs: x }; };
+  R.vs = [bucket('Lavere ratet (50+ under)', g => g.opR <= g.myR - 50), bucket('Jevnbyrdige', g => Math.abs(g.opR - g.myR) < 50), bucket('Høyere ratet (50+ over)', g => g.opR >= g.myR + 50)];
+  const lo = R.vs[0], hi = R.vs[2];
+  if (lo.n >= 30 && lo.exp - lo.act >= 0.05) F('lavere', (lo.exp - lo.act) * lo.n, 'Du mister poeng mot lavere ratede',
+    `<p>Mot spillere 50+ poeng under deg tar du ${pct(lo.act)}; ratingforskjellen tilsier ${pct(lo.exp)} (${lo.n} partier).</p><p>Typisk årsak er at man spiller for fort eller for skarpt mot dem man «skal» slå. Spill de samme solide trekkene som mot jevnbyrdige og la dem gjøre feilene.</p>`, ex(lo.gs.filter(g => g.res === 'l')));
+  if (hi.n >= 30 && hi.act - hi.exp >= 0.04) R.strengths.push(`Mot høyere ratede tar du ${pct(hi.act)}, mer enn de ${pct(hi.exp)} ratingen tilsier.`);
+
+  // --- Tid på døgnet ---
+  const blocks = [['natt (00–06)', 0], ['formiddag (06–12)', 6], ['ettermiddag (12–18)', 12], ['kveld (18–24)', 18]].map(([name, h]) => { const x = gs.filter(g => { const hr = new Date(g.t).getHours(); return hr >= h && hr < h + 6; }); return { name, n: x.length, score: score(x) }; }).filter(b => b.n >= 30);
+  if (blocks.length >= 2) {
+    const worst = [...blocks].sort((a, b) => a.score - b.score)[0], best = [...blocks].sort((a, b) => b.score - a.score)[0];
+    if (best.score - worst.score >= 0.06) R.notes.push(`Tid på døgnet: best på ${best.name} med ${pct(best.score)}, svakest på ${worst.name} med ${pct(worst.score)} (${worst.n} partier).`);
+  }
+
+  // --- Lichess-analyse der den finnes ---
+  const an = gs.filter(g => g.an);
+  if (an.length >= 5) {
+    const b = an.reduce((s, g) => s + g.an.blun, 0) / an.length, m = an.reduce((s, g) => s + g.an.mist, 0) / an.length;
+    R.notes.push(`${an.length} partier har datamaskinanalyse fra Lichess: i snitt ${b.toFixed(1)} bukker og ${m.toFixed(1)} feil per parti.`);
+  }
+  if (maxStreak >= 6) R.notes.push(`Lengste tapsrekke i utvalget: ${maxStreak} partier.`);
+
+  R.findings.sort((a, b) => b.cost - a.cost);
+  return R;
+}
+
+/* Én setning om hva som avgjorde partiet. */
+function verdict(g) {
+  const d = g.d, m = Math.ceil(g.moves.length / 2), big = e => e.n >= 2;
+  const drop = d && d.drops.find(big), gain = d && d.gains.find(big);
+  const at = e => `trekk ${mvNo(e.ply)} (${e.san})`;
+  if (g.res === 'l') {
+    if (g.status === 'outoftime') {
+      if (d && d.matEnd >= 3) return `Tapte på tid med ${d.matEnd} poeng mer materiell. Stillingen var vunnet; klokken var problemet.`;
+      if (d && d.matEnd <= -3) return 'Tapte på tid i en stilling som alt var tapt materielt.';
+      return 'Tapte på tid i materielt jevn stilling.';
+    }
+    if (g.status === 'timeout') return 'Tapte fordi du forlot partiet.';
+    if (d && d.maxLead >= 3 && drop) { const back = d.drops.filter(e => e.ply > d.maxLeadPly).find(big) || drop; return `Ledet med ${d.maxLead} poeng, men ga det tilbake i ${at(back)}.`; }
+    if (d && d.maxLead >= 3) return `Ledet med ${d.maxLead} poeng materielt og tapte likevel. Se etter kongeangrepet eller fribonden du slapp til.`;
+    if (drop) return `Avgjort av materialtap i ${at(drop)}${mvNo(drop.ply) <= 12 ? ', allerede i åpningen' : ''}.`;
+    if (g.status === 'mate' && m <= 25) return `Matt etter ${m} trekk uten forutgående materialtap: kongesikkerheten sviktet.`;
+    return 'Tapte uten ett enkelt materialtap: gradvis utspilt, eller taktikk som bare motoren viser.';
+  }
+  if (g.res === 'w') {
+    if (g.status === 'outoftime') return d && d.matEnd <= -3 ? `Vant på tid, men lå ${-d.matEnd} poeng under materielt.` : 'Vant på tid.';
+    if (d && d.minLead <= -3 && gain) return `Snudde partiet: lå ${-d.minLead} poeng under, motstanderen bukket i ${at(gain)}.`;
+    if (gain) return `Motstanderen ga bort materiell i ${at(gain)}, og du førte det hjem.`;
+    if (g.status === 'mate' && m <= 25) return `Matt på ${m} trekk.`;
+    return 'Vant uten store materielle gaver: godt spilt, eller motstanderen ga opp tidlig.';
+  }
+  if (d && d.matEnd >= 3) return `Remis med ${d.matEnd} poeng mer materiell. Her lå det en seier.`;
+  if (d && d.matEnd <= -3) return 'Remis fra materielt underlegen stilling. Godt reddet.';
+  return 'Remis.';
+}
+
+const fmtClock = cs => { if (cs == null) return '–'; const s = Math.round(cs / 100); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+
+function gameDetails(g) {
+  const d = g.d, out = [];
+  out.push(`${g.opening || 'Ukjent åpning'}${g.eco ? ' (' + g.eco + ')' : ''}, ${Math.ceil(g.moves.length / 2)} trekk.`);
+  if (d && d.myEnd != null) out.push(`Klokke: ` + (d.my15 != null ? `etter 15 trekk hadde du ${fmtClock(d.my15)} og motstanderen ${fmtClock(d.op15)}; ` : '') + `ved slutt ${fmtClock(d.myEnd)} mot ${fmtClock(d.opEnd)}.`);
+  if (d) {
+    const ev = [...d.drops.map(e => ({ ...e, mine: true })), ...d.gains.map(e => ({ ...e, mine: false }))].sort((a, b) => a.ply - b.ply);
+    ev.forEach(e => out.push(e.mine ? `Trekk ${mvNo(e.ply)}: ${e.san} kostet deg ca. ${e.n} poeng materiell.` : `Trekk ${mvNo(e.ply)}: motstanderens ${e.san} ga deg ca. ${e.n} poeng.`));
+    if (!ev.length) out.push('Ingen større materielle svingninger utenom vanlige avbytter.');
+  }
+  if (g.judg && g.judg.length) out.push('Lichess-motoren: ' + g.judg.filter(j => j.name !== 'Unøyaktighet').map(j => `${j.name.toLowerCase()} i trekk ${mvNo(j.ply)} (${g.moves[j.ply]})`).join(', ') + '.');
+  return out;
+}
+
+function movesText(g) {
+  let s = '';
+  g.moves.forEach((san, i) => { if (i % 2 === 0) s += (i / 2 + 1) + '. '; s += san; if (g.clocks && g.clocks[i] != null && isMine(g, i) && i % 10 < 2) s += ' {' + fmtClock(g.clocks[i]) + '}'; s += ' '; });
+  return s.trim();
+}
+
+
+/* ---------- Grensesnitt ---------- */
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const S = { user: 'Hurrator', games: new Map(), speed: 'all', period: 'all', list: 'all', shown: 30, direct: null, busy: false, abort: null, sample: null, chats: {}, R: null, open: null };
+const fmtDate = t => new Date(t).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' });
+const ChessLib = typeof Chess !== 'undefined' ? Chess : null;
+
+/* Lokal lagring (bare en bekvemmelighet: siden virker uten) */
+let dbp = null;
+function db() {
+  if (dbp) return dbp;
+  dbp = new Promise(res => {
+    try {
+      const rq = indexedDB.open('sjakkanalyse-v1', 1);
+      rq.onupgradeneeded = () => rq.result.createObjectStore('games', { keyPath: 'k' });
+      rq.onsuccess = () => res(rq.result); rq.onerror = () => res(null); rq.onblocked = () => res(null);
+    } catch (e) { res(null); }
+  });
+  return dbp;
+}
+async function dbAll() {
+  const d = await db(); if (!d) return [];
+  return new Promise(res => { try { const rq = d.transaction('games').objectStore('games').getAll(); rq.onsuccess = () => res(rq.result || []); rq.onerror = () => res([]); } catch (e) { res([]); } });
+}
+async function dbPut(list) {
+  const d = await db(); if (!d || !list.length) return;
+  try { const tx = d.transaction('games', 'readwrite'), st = tx.objectStore('games'); list.forEach(g => st.put({ ...g, k: g.u + ':' + g.id })); } catch (e) { }
+}
+async function dbClear() { const d = await db(); if (d) try { d.transaction('games', 'readwrite').objectStore('games').clear(); } catch (e) { } }
+
+function addGames(list) {
+  let added = 0; const fresh = [];
+  for (const g of list) { if (!S.games.has(g.id)) { S.games.set(g.id, g); added++; fresh.push(g); } }
+  dbPut(fresh);
+  return added;
+}
+const newest = () => { let m = 0; S.games.forEach(g => { if (g.t > m) m = g.t; }); return m; };
+const apiUrl = extra => `https://lichess.org/api/games/user/${encodeURIComponent(S.user)}?` + new URLSearchParams({ clocks: 'true', opening: 'true', evals: 'true', ...extra });
+
+function setStatus(msg, kind) { const el = $('status'); el.textContent = msg; el.className = 'status ' + (kind || ''); }
+function setBusy(b) { S.busy = b; ['btnNew', 'btnAll', 'btnLink'].forEach(i => $(i).disabled = b); $('btnStop').hidden = !b; }
+
+/* Henter strømmen av partier rett fra Lichess */
+async function fetchStream(extra, label) {
+  if (S.busy) return;
+  setBusy(true); S.abort = new AbortController();
+  let got = 0, added = 0, buf = '', batch = [];
+  try {
+    setStatus(label + ' …');
+    const r = await fetch(apiUrl(extra), { headers: { Accept: 'application/x-ndjson' }, signal: S.abort.signal });
+    if (!r.ok) throw new Error(r.status === 404 ? `Fant ikke brukeren ${S.user} på Lichess.` : r.status === 429 ? 'Lichess ber om en pause. Vent et minutt og prøv igjen.' : 'Lichess svarte med feil ' + r.status + '.');
+    S.direct = true;
+    const rd = r.body.getReader(), dec = new TextDecoder();
+    for (;;) {
+      const { done, value } = await rd.read();
+      buf += dec.decode(value || new Uint8Array(), { stream: !done });
+      const lines = buf.split('\n'); buf = done ? '' : lines.pop();
+      for (const ln of lines) { if (!ln.trim()) continue; got++; try { const g = fromJson(JSON.parse(ln), S.user); if (g) batch.push(g); } catch (e) { } }
+      if (batch.length >= 100 || done) { added += addGames(batch); batch = []; setStatus(`${label}: ${got} partier lest, ${added} nye`); }
+      if (done) break;
+    }
+    setStatus(added ? `Ferdig. ${added} nye partier lagt til.` : 'Ingen nye partier siden sist.', 'ok');
+  } catch (e) {
+    added += addGames(batch);
+    if (e.name === 'AbortError') setStatus(`Stoppet. ${added} nye partier lagt til.`, 'ok');
+    else if (e.name === 'TypeError') { S.direct = false; setStatus('Denne visningen får ikke kontakte Lichess direkte. Bruk nedlastingslenken under og velg filen.', 'warn'); $('imp').open = true; }
+    else setStatus(e.message, 'bad');
+  }
+  setBusy(false); refresh();
+}
+
+async function fetchOne(link) {
+  const m = /(?:lichess\.org\/)?(?:game\/export\/)?([A-Za-z0-9]{8})(?:[A-Za-z0-9]{4})?(?:[\/#?].*)?$/.exec(link.trim());
+  if (!m) return setStatus('Kjenner ikke igjen lenken. Lim inn en adresse som https://lichess.org/AbCdEfGh.', 'bad');
+  setBusy(true);
+  try {
+    const r = await fetch(`https://lichess.org/game/export/${m[1]}?clocks=true&opening=true&evals=true`, { headers: { Accept: 'application/json' } });
+    if (!r.ok) throw new Error('Fant ikke partiet (' + r.status + ').');
+    const g = fromJson(await r.json(), S.user);
+    if (!g) throw new Error(`Partiet er ikke et vanlig sjakkparti spilt av ${S.user}.`);
+    addGames([g]); S.open = g.id; setStatus('Partiet er lagt til.', 'ok'); $('link').value = '';
+  } catch (e) {
+    if (e.name === 'TypeError') { S.direct = false; setStatus('Denne visningen får ikke kontakte Lichess direkte. Last ned partiet som PGN på Lichess og lim det inn under.', 'warn'); $('imp').open = true; }
+    else setStatus(e.message, 'bad');
+  }
+  setBusy(false); refresh();
+}
+
+function importText(text) {
+  const { games, skipped } = parseAny(text, S.user);
+  const added = addGames(games);
+  setStatus(games.length ? `${added} nye partier lagt til` + (games.length - added ? `, ${games.length - added} fantes fra før` : '') + (skipped ? `, ${skipped} hoppet over (varianter, avbrutte eller andre spillere)` : '') + '.' : `Fant ingen partier for ${S.user} i teksten.`, games.length ? 'ok' : 'bad');
+  refresh();
+}
+
+/* Utledning i bakgrunnen, nyeste først */
+let deriving = false;
+async function deriveAll() {
+  if (deriving) return; deriving = true;
+  const todo = [...S.games.values()].filter(g => !g.d).sort((a, b) => b.t - a.t).slice(0, 4000);
+  let i = 0, done = [];
+  while (i < todo.length) {
+    const t0 = performance.now();
+    while (i < todo.length && performance.now() - t0 < 40) { const g = todo[i++]; g.d = derive(g, ChessLib); done.push(g); }
+    $('prog').hidden = false; $('prog').textContent = `Spiller gjennom partiene: ${i} av ${todo.length}`;
+    if (done.length >= 300) { dbPut(done); done = []; render(); }
+    await new Promise(r => setTimeout(r, 0));
+  }
+  dbPut(done); $('prog').hidden = true; deriving = false;
+  if (todo.length) render();
+}
+
+function filtered() {
+  let gs = [...S.games.values()].filter(g => S.speed === 'all' || g.speed === S.speed).sort((a, b) => a.t - b.t);
+  if (S.period === '90') { const lim = Date.now() - 90 * 864e5; gs = gs.filter(g => g.t >= lim); }
+  if (S.period === '200') gs = gs.slice(-200);
+  return gs;
+}
+function refresh() { updateLoadPanel(); render(); deriveAll(); }
+
+function updateLoadPanel() {
+  const n = S.games.size, nw = newest();
+  $('have').textContent = n ? `${n} partier lagret i denne nettleseren. Nyeste: ${fmtDate(nw)}.` : 'Ingen partier lastet ennå.';
+  $('dlAll').href = apiUrl({});
+  $('dlNew').href = apiUrl(nw ? { since: String(nw + 1) } : { max: '300' });
+  $('dlNew').textContent = nw ? `Last ned partier spilt etter ${fmtDate(nw)}` : 'Last ned de 300 siste partiene';
+  $('btnNew').textContent = n ? 'Hent nye partier' : 'Hent de 300 siste';
+}
+
+function chips(id, opts, cur, on) {
+  $(id).innerHTML = opts.map(([v, l]) => `<button type="button" class="chip${v === cur ? ' on' : ''}" data-v="${v}" aria-pressed="${v === cur}">${esc(l)}</button>`).join('');
+  $(id).onclick = e => { const b = e.target.closest('.chip'); if (b) on(b.dataset.v); };
+}
+
+function spark(series) {
+  if (series.length < 5) return '';
+  const step = Math.max(1, Math.floor(series.length / 160)), pts = series.filter((_, i) => i % step === 0 || i === series.length - 1);
+  const rs = pts.map(p => p.r), lo = Math.min(...rs), hi = Math.max(...rs), W = 600, H = 110, pad = 6;
+  const x = i => pad + i * (W - 2 * pad - 44) / (pts.length - 1), y = r => pad + (H - 2 * pad) * (1 - (r - lo) / Math.max(1, hi - lo));
+  const line = pts.map((p, i) => `${x(i).toFixed(1)},${y(p.r).toFixed(1)}`).join(' ');
+  const last = pts[pts.length - 1];
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" role="img" aria-label="Ratingutvikling fra ${lo} til ${hi}, nå ${last.r}">
+    <line x1="${pad}" x2="${W - 50}" y1="${y(hi)}" y2="${y(hi)}" class="grid"/><line x1="${pad}" x2="${W - 50}" y1="${y(lo)}" y2="${y(lo)}" class="grid"/>
+    <polygon class="area" points="${pad},${H - pad} ${line} ${x(pts.length - 1)},${H - pad}"/><polyline class="ln" points="${line}"/>
+    <circle class="dot" cx="${x(pts.length - 1)}" cy="${y(last.r)}" r="4"/>
+    <text x="${W - 4}" y="${y(hi) + 4}" text-anchor="end">${hi}</text><text x="${W - 4}" y="${y(lo) + 4}" text-anchor="end">${lo}</text></svg>
+    <p class="cap">Rating i ${SPEED_NO[S.R.speed].toLowerCase()}, ${fmtDate(series[0].t)} til ${fmtDate(last.t)}. Nå ${last.r}.</p>`;
+}
+
+const exLinks = ex => ex.length ? `<p class="ex">Eksempler: ` + ex.map(e => `<a href="https://lichess.org/${e.g.id}/${e.g.me}${e.ply != null ? '#' + (e.ply + 1) : ''}" target="_blank" rel="noopener">mot ${esc(e.g.opp)}, ${fmtDate(e.g.t)}${e.ply != null ? ', trekk ' + mvNo(e.ply) : ''}</a>`).join(' · ') + `</p>` : '';
+
+function openingTable(rows, base) {
+  if (!rows.length) return '<p class="muted">Ingen åpningsdata.</p>';
+  return `<div class="tw"><table><thead><tr><th>Åpning</th><th class="num">Partier</th><th>Seier / remis / tap</th><th class="num">Poeng</th></tr></thead><tbody>` + rows.slice(0, 8).map(r => {
+    const cls = r.n >= 8 && r.score < base - 0.07 ? 'bad' : r.n >= 8 && r.score > base + 0.07 ? 'good' : '';
+    return `<tr><td>${esc(r.name)}</td><td class="num">${r.n}</td><td><span class="wdl" title="${r.w} seire, ${r.d} remis, ${r.l} tap"><i class="w" style="flex:${r.w}"></i><i class="d" style="flex:${r.d}"></i><i class="l" style="flex:${r.l}"></i></span></td><td class="num ${cls}">${pct(r.score)}</td></tr>`;
+  }).join('') + `</tbody></table></div>`;
+}
+
+function gameRow(g) {
+  const open = S.open === g.id, tag = { w: ['Seier', 'good'], l: ['Tap', 'bad'], d: ['Remis', 'mid'] }[g.res];
+  let h = `<li class="game${open ? ' open' : ''}"><button type="button" class="ghead" data-id="${g.id}" aria-expanded="${open}">
+    <span class="pill ${tag[1]}">${tag[0]}</span><span class="gmeta">${fmtDate(g.t)} · ${SPEED_NO[g.speed] || g.speed} · ${g.me === 'white' ? 'hvit' : 'svart'} mot ${esc(g.opp)}${g.opR ? ' (' + g.opR + ')' : ''}</span>
+    <span class="gverdict">${esc(verdict(g))}</span></button>`;
+  if (open) {
+    h += `<div class="gbody"><ul class="det">${gameDetails(g).map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+      <p class="moves">${esc(movesText(g))}</p>
+      <p><a href="https://lichess.org/${g.id}/${g.me}" target="_blank" rel="noopener">Åpne partiet på Lichess</a></p>${chatBox(g)}</div>`;
+  }
+  return h + '</li>';
+}
+
+/* ---------- Samtale med Claude ---------- */
+function md(t) {
+  return esc(t).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').split(/\n{2,}/).map(p => /^\s*[-•]\s/.test(p) ? '<ul>' + p.split('\n').map(l => `<li>${l.replace(/^\s*[-•]\s+/, '')}</li>`).join('') + '</ul>' : /^#+\s/.test(p) ? `<h4>${p.replace(/^#+\s+/, '')}</h4>` : `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
+}
+function profileText() {
+  const R = S.R; if (!R || !R.n) return '';
+  return `Spilleren heter ${S.user} på Lichess, rating ca. ${R.rating} i ${SPEED_NO[R.speed]} (nivå ${R.bandName}). Utvalg: ${R.n} partier, ${R.w} seire, ${R.d} remis, ${R.l} tap.\n` +
+    (R.findings.length ? 'Mønstre funnet i statistikken:\n' + R.findings.map(f => '- ' + f.title + ': ' + f.html.replace(/<p>[^<]*(?:<b>[^<]*<\/b>[^<]*)*<\/p>$/, '').replace(/<[^>]+>/g, '')).join('\n') + '\n' : '') +
+    (R.strengths.length ? 'Styrker:\n' + R.strengths.map(s => '- ' + s).join('\n') + '\n' : '');
+}
+const RULES = `Du er sjakktrener og svarer på norsk bokmål. Tilpass språk og råd til spillerens nivå og tidskontroll. Vær konkret: vis til trekknummer og trekk. Du har ingen sjakkmotor, så bygg på opplysningene du får (materielle hendelser, klokke, eventuelle motorvurderinger), og si tydelig fra når en taktisk vurdering er usikker i stedet for å gjette. Skriv kort: vanlig tekst, korte avsnitt, ingen tabeller.`;
+function gameContext(g) {
+  return `${RULES}\n\n${profileText()}\nPARTIET (${fmtDate(g.t)}, ${SPEED_NO[g.speed]}${g.init != null ? ' ' + g.init / 60 + '+' + g.inc : ''}): ${S.user} (${g.myR || '?'}) spilte ${g.me === 'white' ? 'hvit' : 'svart'} mot ${g.opp} (${g.opR || '?'}). Resultat for ${S.user}: ${{ w: 'seier', l: 'tap', d: 'remis' }[g.res]} (${g.status}).\nAutomatisk oppsummering: ${verdict(g)}\n${gameDetails(g).join('\n')}\nTrekk (klokken til ${S.user} i klammer): ${movesText(g)}`;
+}
+function chatBox(g) {
+  const c = S.chats[g.id] || [];
+  const msgs = c.map(m => `<div class="msg ${m.role}">${m.role === 'user' ? esc(m.show) : md(m.content || '…')}</div>`).join('');
+  if (!S.sample) return `<div class="chat"><p class="muted">Vil du snakke med Claude om partiet? Kopier partiet med all kontekst og lim det inn i en samtale.</p><button type="button" class="btn ghost" data-copy="${g.id}">Kopier parti og kontekst</button></div>`;
+  return `<div class="chat"><h4>Snakk med Claude om partiet</h4><div class="msgs" id="msgs">${msgs}</div>
+    ${c.length ? '' : `<div class="sugg">${['Hva var det avgjørende øyeblikket?', 'Hva burde jeg gjort annerledes i åpningen?', 'Hvordan brukte jeg tiden?'].map(q => `<button type="button" class="chip" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>`}
+    <form class="ask" id="ask"><label class="sr" for="q">Spørsmål om partiet</label><input id="q" autocomplete="off" placeholder="Spør om partiet"><button class="btn" type="submit">Send</button></form></div>`;
+}
+async function ask(g, q) {
+  if (!S.sample || !q.trim() || S.asking) return;
+  const c = S.chats[g.id] = S.chats[g.id] || [];
+  c.push({ role: 'user', show: q, content: c.length ? q : gameContext(g) + '\n\nSpørsmål: ' + q });
+  const a = { role: 'assistant', content: '' }; c.push(a); S.asking = true; render();
+  try {
+    const r = await S.sample(c.slice(0, -1).map(m => ({ role: m.role, content: m.content })), { cache: false, onText: ({ text }) => { a.content = text; const el = $('msgs'); if (el && el.lastElementChild) { el.lastElementChild.innerHTML = md(text); } } });
+    a.content = r.text;
+  } catch (e) {
+    c.pop(); c.pop();
+    setStatus(e.code === 'rate_limited' ? 'Claude er opptatt akkurat nå. Prøv igjen om litt.' : e.code === 'not_granted' ? 'Claude-samtale er ikke tillatt i denne visningen.' : 'Fikk ikke svar fra Claude: ' + (e.message || e.code), 'bad');
+    if (e.code === 'not_granted') S.sample = null;
+  }
+  S.asking = false; render();
+}
+async function coach() {
+  const el = $('coachOut'), gs = filtered().filter(g => g.res === 'l').slice(-5);
+  $('btnCoach').disabled = true; el.innerHTML = '<p class="muted">Claude leser gjennom tallene og de siste tapene …</p>';
+  const prompt = `${RULES}\n\n${profileText()}\nDe siste tapene:\n` + gs.map(g => `[${g.id}] ${fmtDate(g.t)}, ${g.me === 'white' ? 'hvit' : 'svart'}, ${g.opening}. ${verdict(g)} ${gameDetails(g).slice(1).join(' ')}\n${movesText(g)}`).join('\n\n') +
+    `\n\nSkriv en trenerrapport på høyst 350 ord: (1) det ene mønsteret som koster mest og hvorfor, med henvisning til konkrete partier over, (2) to andre ting å jobbe med, (3) en treningsplan for de neste sju dagene med 20 minutter per dag, tilpasset nivået.`;
+  try { const r = await S.sample(prompt, { modelTier: 'complex', onText: ({ text }) => { el.innerHTML = md(text); } }); el.innerHTML = md(r.text); }
+  catch (e) { el.innerHTML = `<p class="bad">Fikk ikke svar fra Claude${e.code === 'rate_limited' ? ' (opptatt, prøv igjen om litt)' : ''}.</p>`; }
+  $('btnCoach').disabled = false;
+}
+
+/* ---------- Tegn siden ---------- */
+function render() {
+  const speeds = {}; S.games.forEach(g => speeds[g.speed] = (speeds[g.speed] || 0) + 1);
+  chips('fSpeed', [['all', 'Alle'], ...Object.keys(speeds).sort((a, b) => speeds[b] - speeds[a]).map(s => [s, `${SPEED_NO[s] || s} (${speeds[s]})`])], S.speed, v => { S.speed = v; S.shown = 30; render(); });
+  chips('fPeriod', [['all', 'Hele historikken'], ['90', 'Siste 90 dager'], ['200', 'Siste 200 partier']], S.period, v => { S.period = v; S.shown = 30; render(); });
+  const gs = filtered(), out = $('out');
+  $('filters').hidden = !S.games.size;
+  if (!gs.length) { out.innerHTML = S.games.size ? '<p class="muted">Ingen partier i dette utvalget.</p>' : ''; $('empty').hidden = !!S.games.size; return; }
+  $('empty').hidden = true;
+  const R = S.R = analyse(gs), pending = gs.some(g => !g.d);
+  let h = `<section class="sum"><div class="lead"><h2>${R.n} partier, ${pct(R.score)} av poengene</h2>
+    <p>${R.w} seire, ${R.d} remis, ${R.l} tap. Rådene er tilpasset nivået <b>${R.bandName}</b> (rating ca. ${R.rating} i ${SPEED_NO[R.speed].toLowerCase()}).</p>
+    <div class="speeds">${R.bySpeed.map(s => `<span><b>${SPEED_NO[s.speed] || s.speed}</b> ${s.rating || '–'} · ${s.n} partier · ${pct(s.score)}</span>`).join('')}</div></div>
+    <div>${spark(R.series)}</div></section>`;
+  h += `<section><h2>Det viktigste å jobbe med</h2>` + (pending ? '<p class="muted">Partiene spilles fortsatt gjennom. Funnene om materiell blir flere og sikrere når det er ferdig.</p>' : '');
+  const top = R.findings.slice(0, 3), rest = R.findings.slice(3);
+  h += top.length ? `<ol class="prio">${top.map(f => `<li><h3>${esc(f.title)}</h3>${f.html}${exLinks(f.ex)}</li>`).join('')}</ol>` : `<p class="muted">Ingen tydelige svakheter i dette utvalget ennå. Last inn flere partier for sikrere mønstre${R.n < 50 ? ' (minst 50 gir mest)' : ''}.</p>`;
+  h += `</section>`;
+  if (S.sample) h += `<section class="coach"><h2>Trenerrapport fra Claude</h2><p class="muted">Claude får statistikken over og de fem siste tapene, og skriver en personlig vurdering med ukeplan.</p><button type="button" class="btn" id="btnCoach">Skriv trenerrapport</button><div id="coachOut">${S.coachHtml || ''}</div></section>`;
+  if (rest.length) h += `<section><h2>Flere mønstre</h2><div class="more">${rest.map(f => `<article><h3>${esc(f.title)}</h3>${f.html}${exLinks(f.ex)}</article>`).join('')}</div></section>`;
+  if (R.strengths.length || R.notes.length) h += `<section class="two"><div><h2>Dette fungerer</h2>${R.strengths.length ? `<ul class="plain">${R.strengths.map(s => `<li>${esc(s)}</li>`).join('')}</ul>` : '<p class="muted">Kommer med flere partier.</p>'}</div><div><h2>Andre observasjoner</h2><ul class="plain">${R.notes.map(s => `<li>${esc(s)}</li>`).join('') || '<li class="muted">Ingen.</li>'}</ul></div></section>`;
+  if (R.vs && R.vs.some(v => v.n)) h += `<section><h2>Mot ulike motstandere</h2><div class="tw"><table><thead><tr><th>Motstander</th><th class="num">Partier</th><th class="num">Du tar</th><th class="num">Forventet</th></tr></thead><tbody>${R.vs.map(v => `<tr><td>${v.name}</td><td class="num">${v.n}</td><td class="num ${v.n >= 30 && v.act < v.exp - 0.05 ? 'bad' : v.n >= 30 && v.act > v.exp + 0.04 ? 'good' : ''}">${v.n ? pct(v.act) : '–'}</td><td class="num">${v.n ? pct(v.exp) : '–'}</td></tr>`).join('')}</tbody></table></div></section>`;
+  h += `<section><h2>Åpninger som hvit <small>snitt ${pct(R.base_white)}</small></h2>${openingTable(R.openings.white, R.base_white)}<h2>Åpninger som svart <small>snitt ${pct(R.base_black)}</small></h2>${openingTable(R.openings.black, R.base_black)}</section>`;
+  const lst = gs.filter(g => S.list === 'all' || g.res === S.list).reverse();
+  h += `<section><h2>Partier</h2><p class="muted">Trykk på et parti for forklaring${S.sample ? ' og samtale med Claude' : ''}.</p><div class="chips" id="fList"></div><ul class="games">${lst.slice(0, S.shown).map(gameRow).join('')}</ul>${lst.length > S.shown ? `<button type="button" class="btn ghost" id="more">Vis flere (${lst.length - S.shown} igjen)</button>` : ''}</section>`;
+  const focusQ = document.activeElement && document.activeElement.id === 'q';
+  out.innerHTML = h;
+  chips('fList', [['all', 'Alle'], ['l', 'Tap'], ['w', 'Seire'], ['d', 'Remis']], S.list, v => { S.list = v; S.shown = 30; render(); });
+  if (focusQ && $('q')) $('q').focus();
+  const ms = $('msgs'); if (ms) ms.scrollTop = ms.scrollHeight;
+}
+
+function init() {
+  $('out').addEventListener('click', e => {
+    const gh = e.target.closest('.ghead'); if (gh) { S.open = S.open === gh.dataset.id ? null : gh.dataset.id; return render(); }
+    const q = e.target.closest('[data-q]'); if (q) return ask(S.games.get(S.open), q.dataset.q);
+    const cp = e.target.closest('[data-copy]');
+    if (cp) { const g = S.games.get(cp.dataset.copy); navigator.clipboard.writeText(gameContext(g) + '\n\nSpørsmål: Hva var det avgjørende øyeblikket, og hva bør jeg lære av partiet?').then(() => cp.textContent = 'Kopiert', () => cp.textContent = 'Kunne ikke kopiere'); return; }
+    if (e.target.id === 'more') { S.shown += 30; return render(); }
+    if (e.target.id === 'btnCoach') return coach().then(() => { S.coachHtml = $('coachOut') ? $('coachOut').innerHTML : ''; });
+  });
+  $('out').addEventListener('submit', e => { if (e.target.id === 'ask') { e.preventDefault(); const q = $('q').value; $('q').value = ''; ask(S.games.get(S.open), q); } });
+  $('btnNew').onclick = () => { const nw = newest(); fetchStream(nw ? { since: String(nw + 1) } : { max: '300' }, nw ? 'Henter nye partier' : 'Henter de 300 siste partiene'); };
+  $('btnAll').onclick = () => fetchStream({}, 'Henter hele historikken');
+  $('btnStop').onclick = () => S.abort && S.abort.abort();
+  $('linkForm').onsubmit = e => { e.preventDefault(); if ($('link').value.trim()) fetchOne($('link').value); };
+  $('file').onchange = async e => { for (const f of e.target.files) importText(await f.text()); e.target.value = ''; };
+  $('btnPaste').onclick = () => { importText($('paste').value); $('paste').value = ''; };
+  $('userForm').onsubmit = async e => { e.preventDefault(); const u = $('user').value.trim(); if (!u || u === S.user) return; S.user = u; try { localStorage.setItem('sjakk-user', u); } catch (x) { } await loadStored(); refresh(); };
+  $('btnClear').onclick = async () => { if ($('btnClear').dataset.sure) { await dbClear(); S.games.clear(); S.chats = {}; delete $('btnClear').dataset.sure; $('btnClear').textContent = 'Slett lagrede partier'; setStatus('Lagrede partier er slettet.', 'ok'); refresh(); } else { $('btnClear').dataset.sure = '1'; $('btnClear').textContent = 'Trykk igjen for å slette alt'; } };
+  try { const u = localStorage.getItem('sjakk-user'); if (u) S.user = u; } catch (x) { }
+  $('user').value = S.user;
+  if (window.claude && window.claude.use) window.claude.use('sample').then(s => { if (s) { S.sample = s; render(); } }).catch(() => { });
+  loadStored().then(() => { refresh(); $('btnNew').click(); });
+}
+async function loadStored() {
+  S.games.clear(); const u = S.user.toLowerCase();
+  (await dbAll()).forEach(g => { if (g.u === u) { if (g.d && g.d.v !== 1) delete g.d; S.games.set(g.id, g); } });
+}
+init();
+
+</script>
+</body>
+</html>
