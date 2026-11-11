@@ -206,7 +206,7 @@ function parsePgn(text, user) {
     if (!speed) { const est = init == null ? 99999 : init + 40 * inc; speed = est < 30 ? 'ultraBullet' : est < 180 ? 'bullet' : est < 480 ? 'blitz' : est < 1500 ? 'rapid' : 'classical'; }
     const d = (h.UTCDate || h.Date || '').split('.'), tm = (h.UTCTime || '00:00:00').split(':');
     const t = Date.UTC(+d[0] || 2000, (+d[1] || 1) - 1, +d[2] || 1, +tm[0] || 0, +tm[1] || 0, +tm[2] || 0);
-    const idm = /lichess\.org\/(\w{8})/.exec(h.Site || h.GameId || '');
+    const idm = /^(\w{8})$/.exec(h.GameId || '') || /lichess\.org\/(?:game\/)?(\w{8})/.exec(h.Site || '');
     const res = h.Result === '1/2-1/2' ? 'd' : (h.Result === '1-0') === (me === 'white') ? 'w' : 'l';
     const term = h.Termination || '', last = moves[moves.length - 1];
     const status = res === 'd' ? (/stalemate/i.test(term) ? 'stalemate' : 'draw') : /time/i.test(term) ? 'outoftime' : /abandon/i.test(term) ? 'timeout' : /#$/.test(last) ? 'mate' : 'resign';
